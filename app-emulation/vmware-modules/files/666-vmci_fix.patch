@@ -1,0 +1,34 @@
+diff -rupN vmci-only/linux/driver.c vmci-only-mod/linux/driver.c
+--- vmci-only/linux/driver.c	2014-04-15 03:11:40.000000000 +0530
++++ vmci-only-mod/linux/driver.c	2014-05-27 21:28:20.389314970 +0530
+@@ -716,6 +716,7 @@ LinuxDriver_Ioctl(struct inode *inode,
+    case IOCTL_VMCI_INIT_CONTEXT: {
+       VMCIInitBlock initBlock;
+       VMCIHostUser user;
++	  kuid_t kern_uid;
+ 
+       retval = copy_from_user(&initBlock, (void *)ioarg, sizeof initBlock);
+       if (retval != 0) {
+@@ -737,7 +738,8 @@ LinuxDriver_Ioctl(struct inode *inode,
+          goto init_release;
+       }
+ 
+-      user = current_uid();
++	  kern_uid = current_uid();
++      user = kern_uid.val;
+       retval = VMCIContext_InitContext(initBlock.cid, initBlock.flags,
+                                        0 /* Unused */, vmciLinux->userVersion,
+                                        &user, &vmciLinux->context);
+diff -rupN vsock-only/linux/af_vsock.c vsock-only-mod/linux/af_vsock.c
+--- vsock-only/linux/af_vsock.c	2014-04-15 03:11:41.000000000 +0530
++++ vsock-only-mod/linux/af_vsock.c	2014-05-27 21:39:51.081284121 +0530
+@@ -2869,7 +2869,8 @@ __VSockVmciCreate(struct net *net,
+       vsk->connectTimeout = psk->connectTimeout;
+    } else {
+       vsk->trusted = capable(CAP_NET_ADMIN);
+-      vsk->owner = current_uid();
++	  kuid_t kern_uid = current_uid();
++      vsk->owner = kern_uid.val;
+       vsk->queuePairSize = VSOCK_DEFAULT_QP_SIZE;
+       vsk->queuePairMinSize = VSOCK_DEFAULT_QP_SIZE_MIN;
+       vsk->queuePairMaxSize = VSOCK_DEFAULT_QP_SIZE_MAX;
