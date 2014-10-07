@@ -89,6 +89,9 @@ src_prepare() {
 			"${FILESDIR}/666-vmblock.patch" \
 			"${FILESDIR}/666-vmci_fix.patch"
 
+	kernel_is ge 3 17 0 && epatch \
+			"${FILESDIR}/666-kernel-3.17.patch"
+
 	# Allow user patches so they can support RC kernels and whatever else
 	epatch_user
 }

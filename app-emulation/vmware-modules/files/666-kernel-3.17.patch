@@ -1,0 +1,11 @@
+--- vmnet-only/netif.c.old
++++ vmnet-only/netif.c
+@@ -149,7 +149,7 @@
+    memcpy(deviceName, devName, sizeof deviceName);
+    NULL_TERMINATE_STRING(deviceName);
+ 
+-   dev = alloc_netdev(sizeof *netIf, deviceName, VNetNetIfSetup);
++   dev = alloc_netdev(sizeof *netIf, deviceName, NET_NAME_UNKNOWN, VNetNetIfSetup);
+    if (!dev) {
+       retval = -ENOMEM;
+       goto out;
