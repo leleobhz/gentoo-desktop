@@ -1,0 +1,293 @@
+--- gcc/doc/extend.texi.old	2014-07-30 13:55:03.771558509 +0300
++++ gcc/doc/extend.texi	2014-07-30 13:58:42.237561787 +0300
+@@ -12700,6 +12700,15 @@
+ currently residing on the stack.  This only works inside interrupt
+ handlers and the changes to the status register will only take affect
+ once the handler returns.
++
++@item __delay_cycles (long long @var{cycles})
++This inserts an instruction sequence that takes exactly @var{cycles}
++cycles (between 0 and about 17E9) to complete.  The inserted sequence
++may use jumps, loops, or no-ops, and does not interfere with any other
++instructions.  Note that @var{cycles} must be a compile-time constant
++integer - that is, you must pass a number, not a variable that may be
++optimized to a constant later.  The number of cycles delayed by this
++builtin is exact.
+ @end table
+ 
+ @node NDS32 Built-in Functions
+--- gcc/config/msp430/msp430.md.old	2014-07-30 13:55:10.829558615 +0300
++++ gcc/config/msp430/msp430.md	2014-07-30 13:56:57.893560222 +0300
+@@ -47,6 +47,15 @@
+    UNS_BIS_SR
+ 
+    UNS_REFSYM_NEED_EXIT
++
++   UNS_DELAY_32
++   UNS_DELAY_32X
++   UNS_DELAY_16
++   UNS_DELAY_16X
++   UNS_DELAY_2
++   UNS_DELAY_1
++   UNS_DELAY_START
++   UNS_DELAY_END
+   ])
+ 
+ (include "predicates.md")
+@@ -1323,6 +1332,90 @@
+   "
+   )
+ 
++(define_insn "delay_cycles_start"
++  [(unspec_volatile [(match_operand 0 "immediate_operand" "i")]
++		    UNS_DELAY_START)]
++  ""
++  "; Begin %J0 cycle delay"
++  )
++
++(define_insn "delay_cycles_end"
++  [(unspec_volatile [(match_operand 0 "immediate_operand" "i")]
++		    UNS_DELAY_END)]
++  ""
++  "; End %J0 cycle delay"
++  )
++
++(define_insn "delay_cycles_32"
++  [(unspec_volatile [(match_operand 0 "immediate_operand" "i")
++		     (match_operand 1 "immediate_operand" "i")
++		     ] UNS_DELAY_32)]
++  ""
++  "PUSH	r13
++	PUSH	r14
++	MOV.W	%A0, r13
++	MOV.W	%B0, r14
++1:	SUB.W	#1, r13
++	SUBC.W	#0, r14
++	JNE	1b
++	TST.W	r13
++	JNE	1b
++	POP	r14
++	POP	r13"
++  )
++
++(define_insn "delay_cycles_32x"
++  [(unspec_volatile [(match_operand 0 "immediate_operand" "i")
++		     (match_operand 1 "immediate_operand" "i")
++		     ] UNS_DELAY_32X)]
++  ""
++  "PUSHM.A	#2,r13
++	MOV.W	%A0, r13
++	MOV.W	%B0, r14
++1:	SUB.W	#1, r13
++	SUBC.W	#0, r14
++	JNE	1b
++	TST.W	r13
++	JNE	1b
++	POPM.A	#2,r13"
++  )
++
++(define_insn "delay_cycles_16"
++  [(unspec_volatile [(match_operand 0 "immediate_operand" "i")
++		     (match_operand 1 "immediate_operand" "i")
++		     ] UNS_DELAY_16)]
++  ""
++  "PUSH	r13
++	MOV.W	%0, r13
++1:	SUB.W	#1, r13
++	JNE	1b
++	POP	r13"
++  )
++
++(define_insn "delay_cycles_16x"
++  [(unspec_volatile [(match_operand 0 "immediate_operand" "i")
++		     (match_operand 1 "immediate_operand" "i")
++		     ] UNS_DELAY_16X)]
++  ""
++  "PUSHM.A	#1,r13
++	MOV.W	%0, r13
++1:	SUB.W	#1, r13
++	JNE	1b
++	POPM.A	#1,r13"
++  )
++
++(define_insn "delay_cycles_2"
++  [(unspec_volatile [(const_int 0) ] UNS_DELAY_2)]
++  ""
++  "JMP	.+2"
++  )
++
++(define_insn "delay_cycles_1"
++  [(unspec_volatile [(const_int 0) ] UNS_DELAY_1)]
++  ""
++  "NOP"
++  )
++
+ (define_insn "mulhisi3"
+   [(set (match_operand:SI                          0 "register_operand" "=r")
+ 	(mult:SI (sign_extend:SI (match_operand:HI 1 "register_operand" "%0"))
+--- gcc/config/msp430/msp430.c.old	2014-07-30 13:55:14.587558672 +0300
++++ gcc/config/msp430/msp430.c	2014-07-30 13:56:32.057559834 +0300
+@@ -1285,6 +1285,7 @@
+ {
+   MSP430_BUILTIN_BIC_SR,
+   MSP430_BUILTIN_BIS_SR,
++  MSP430_BUILTIN_DELAY_CYCLES,
+   MSP430_BUILTIN_max
+ };
+ 
+@@ -1294,6 +1295,7 @@
+ msp430_init_builtins (void)
+ {
+   tree void_ftype_int = build_function_type_list (void_type_node, integer_type_node, NULL);
++  tree void_ftype_longlong = build_function_type_list (void_type_node, long_long_integer_type_node, NULL);
+ 
+   msp430_builtins[MSP430_BUILTIN_BIC_SR] =
+     add_builtin_function ( "__bic_SR_register_on_exit", void_ftype_int,
+@@ -1302,6 +1304,10 @@
+   msp430_builtins[MSP430_BUILTIN_BIS_SR] =
+     add_builtin_function ( "__bis_SR_register_on_exit", void_ftype_int,
+ 			   MSP430_BUILTIN_BIS_SR, BUILT_IN_MD, NULL, NULL_TREE);
++
++  msp430_builtins[MSP430_BUILTIN_DELAY_CYCLES] =
++    add_builtin_function ( "__delay_cycles", void_ftype_longlong,
++			   MSP430_BUILTIN_DELAY_CYCLES, BUILT_IN_MD, NULL, NULL_TREE);
+ }
+ 
+ static tree
+@@ -1311,12 +1317,126 @@
+     {
+     case MSP430_BUILTIN_BIC_SR:
+     case MSP430_BUILTIN_BIS_SR:
++    case MSP430_BUILTIN_DELAY_CYCLES:
+       return msp430_builtins[code];
+     default:
+       return error_mark_node;
+     }
+ }
+ 
++/* These constants are really register reads, which are faster than
++   regular constants.  */
++static int
++cg_magic_constant (HOST_WIDE_INT c)
++{
++  switch (c)
++    {
++    case 0xffff:
++    case -1:
++    case 0:
++    case 1:
++    case 2:
++    case 4:
++    case 8:
++      return 1;
++    default:
++      return 0;
++    }
++}
++
++static rtx
++msp430_expand_delay_cycles (rtx arg)
++{
++  HOST_WIDE_INT i, c, n;
++  /* extra cycles for MSP430X instructions */
++#define CYCX(M,X) (msp430x ? (X) : (M))
++
++  if (GET_CODE (arg) != CONST_INT)
++    {
++      error ("__delay_cycles() only takes constant arguments");
++      return NULL_RTX;
++    }
++
++  c = INTVAL (arg);
++
++  if (HOST_BITS_PER_WIDE_INT > 32)
++    {
++      if (c < 0)
++	{
++	  error ("__delay_cycles only takes non-negative cycle counts.");
++	  return NULL_RTX;
++	}
++    }
++
++  emit_insn (gen_delay_cycles_start (arg));
++
++  /* For 32-bit loops, there's 13(16) + 5(min(x,0x10000) + 6x cycles.  */
++  if (c > 3 * 0xffff + CYCX (7, 10))
++    {
++      n = c;
++      /* There's 4 cycles in the short (i>0xffff) loop and 7 in the long (x<=0xffff) loop */
++      if (c >= 0x10000 * 7 + CYCX (14, 16))
++	{
++	  i = 0x10000;
++	  c -= CYCX (14, 16) + 7 * 0x10000;
++	  i += c / 4;
++	  c %= 4;
++	  if ((unsigned long long) i > 0xffffffffULL)
++	    {
++	      error ("__delay_cycles is limited to 32-bit loop counts.");
++	      return NULL_RTX;
++	    }
++	}
++      else
++	{
++	  i = (c - CYCX (14, 16)) / 7;
++	  c -= CYCX (14, 16) + i * 7;
++	}
++
++      if (cg_magic_constant (i & 0xffff))
++	c ++;
++      if (cg_magic_constant ((i >> 16) & 0xffff))
++	c ++;
++
++      if (msp430x)
++	emit_insn (gen_delay_cycles_32x (GEN_INT (i), GEN_INT (n - c)));
++      else
++	emit_insn (gen_delay_cycles_32 (GEN_INT (i), GEN_INT (n - c)));
++    }
++
++  /* For 16-bit loops, there's 7(10) + 3x cycles - so the max cycles is 0x30004(7).  */
++  if (c > 12)
++    {
++      n = c;
++      i = (c - CYCX (7, 10)) / 3;
++      c -= CYCX (7, 10) + i * 3;
++
++      if (cg_magic_constant (i))
++	c ++;
++
++      if (msp430x)
++	emit_insn (gen_delay_cycles_16x (GEN_INT (i), GEN_INT (n - c)));
++      else
++	emit_insn (gen_delay_cycles_16 (GEN_INT (i), GEN_INT (n - c)));
++    }
++
++  while (c > 1)
++    {
++      emit_insn (gen_delay_cycles_2 ());
++      c -= 2;
++    }
++
++  if (c)
++    {
++      emit_insn (gen_delay_cycles_1 ());
++      c -= 1;
++    }
++
++  emit_insn (gen_delay_cycles_end (arg));
++
++  return NULL_RTX;
++}
++
+ static rtx
+ msp430_expand_builtin (tree exp,
+ 		       rtx target ATTRIBUTE_UNUSED,
+@@ -1328,6 +1448,9 @@
+   unsigned int fcode = DECL_FUNCTION_CODE (fndecl);
+   rtx arg1 = expand_normal (CALL_EXPR_ARG (exp, 0));
+ 
++  if (fcode == MSP430_BUILTIN_DELAY_CYCLES)
++    return msp430_expand_delay_cycles (arg1);
++
+   if (! msp430_is_interrupt_func ())
+     {
+       error ("MSP430 builtin functions only work inside interrupt handlers");
