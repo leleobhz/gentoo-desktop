@@ -22,7 +22,7 @@ IUSE="pax_kernel +vmci +vsock"
 RDEPEND=""
 DEPEND="${RDEPEND}
 	|| ( =app-emulation/vmware-player-6.0.${PV_MINOR}*
-	=app-emulation/vmware-workstation-10.0.${PV_MINOR}* )"
+	=app-emulation/vmware-workstation-11.0.${PV_MINOR}* )"
 
 S=${WORKDIR}
 
@@ -83,14 +83,14 @@ src_prepare() {
 	kernel_is ge 3 11 0 && epatch "${FILESDIR}/${PV_MAJOR}-filldir.patch"
 	kernel_is ge 3 12 0 && epatch "${FILESDIR}/${PV_MAJOR}-vfsfollowlink.patch"
 
+#			"${FILESDIR}/666-deprecated_fix.patch" \
 	kernel_is ge 3 15 0 && epatch \
-			"${FILESDIR}/666-deprecated_fix.patch" \
 			"${FILESDIR}/666-kernel-3.15.patch" \
-			"${FILESDIR}/666-vmblock.patch" \
-			"${FILESDIR}/666-vmci_fix.patch"
+			"${FILESDIR}/666-vmblock.patch" 
+#			"${FILESDIR}/666-vmci_fix.patch"
 
-	kernel_is ge 3 17 0 && epatch \
-			"${FILESDIR}/666-kernel-3.17.patch"
+#	kernel_is ge 3 17 0 && epatch \
+#			"${FILESDIR}/666-kernel-3.17.patch"
 
 	# Allow user patches so they can support RC kernels and whatever else
 	epatch_user
