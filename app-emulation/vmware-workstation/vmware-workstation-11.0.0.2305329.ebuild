@@ -84,8 +84,8 @@ RDEPEND="dev-cpp/cairomm
 	x11-libs/startup-notification
 	x11-themes/hicolor-icon-theme
 	!app-emulation/vmware-player"
-PDEPEND="~app-emulation/vmware-modules-304.${PV_MINOR}
-	vmware-tools? ( app-emulation/vmware-tools )"
+#PDEPEND="~app-emulation/vmware-modules-304.${PV_MINOR}
+#	vmware-tools? ( app-emulation/vmware-tools )"
 
 S=${WORKDIR}
 VM_INSTALL_DIR="/opt/vmware"
